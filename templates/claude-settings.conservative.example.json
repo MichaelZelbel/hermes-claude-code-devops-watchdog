@@ -1,0 +1,59 @@
+{
+  "$comment": "Example Claude Code permissions for a conservative Hermes DevOps watchdog. Review against current Claude Code docs before installing.",
+  "permissions": {
+    "allow": [
+      "Bash(hermes status)",
+      "Bash(hermes doctor)",
+      "Bash(hermes version)",
+      "Bash(hermes --version)",
+      "Bash(hermes gateway status)",
+      "Bash(hermes cron list)",
+      "Bash(hermes logs --since *)",
+      "Bash(hermes logs errors --since *)",
+      "Bash(ps -eo pid,cmd --sort=pid *)",
+      "Bash(df -h)",
+      "Bash(df -i)",
+      "Bash(free -h)",
+      "Bash(uptime)",
+      "Bash(journalctl --disk-usage)",
+      "Read()"
+    ],
+    "ask": [
+      "Bash(hermes gateway restart)",
+      "Bash(journalctl --vacuum-time=*)",
+      "Bash(journalctl --vacuum-size=*)",
+      "Bash(hermes update*)",
+      "Bash(hermes setup*)",
+      "Bash(hermes model*)",
+      "Bash(hermes login*)",
+      "Bash(hermes logout*)",
+      "Bash(hermes auth*)",
+      "Bash(hermes config*)",
+      "Bash(hermes cron*)",
+      "Bash(hermes webhook*)",
+      "Bash(hermes mcp*)"
+    ],
+    "deny": [
+      "Read(/opt/data/.env)",
+      "Read(/opt/data/auth.json)",
+      "Read(/opt/data/config.yaml)",
+      "Read(**/*token*)",
+      "Read(**/*secret*)",
+      "Read(**/*credential*)",
+      "Bash(rm *)",
+      "Bash(rm -rf *)",
+      "Bash(trash *)",
+      "Bash(shred *)",
+      "Bash(kill *)",
+      "Bash(pkill *)",
+      "Bash(killall *)",
+      "Bash(systemctl restart ssh)",
+      "Bash(systemctl restart sshd)",
+      "Bash(ufw *)",
+      "Bash(iptables *)",
+      "Bash(nft *)",
+      "Bash(reboot)",
+      "Bash(shutdown *)"
+    ]
+  }
+}
