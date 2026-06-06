@@ -29,6 +29,26 @@ Run the quick health check and safe repair flow.
    - `free -h`
    - `uptime`
 
+## Liveness signals — what counts as "the gateway is down"
+
+A healthy gateway can be completely silent for hours. Use activity-INDEPENDENT signals only. Do NOT treat log silence as failure.
+
+OK to use as failure signals:
+
+- `systemctl is-active hermes-gateway.service` returns inactive/failed.
+- `hermes gateway status` returns non-zero (only if it is a real probe on this version; verify before relying on it).
+- The Hermes process exists but holds no outbound `:443` connection (poll/long-poll mode is broken).
+- "Connected to Telegram" (or the analogous handshake line for the configured platform) is absent from `agent.log*` after the last service start.
+- `hermes logs errors --since 1h` shows repeated unrecovered errors.
+
+DO NOT use as failure signals:
+
+- `agent.log` mtime / file age. An idle Hermes with no chat traffic legitimately writes nothing for many hours; restarting on this signal will kick a healthy gateway every ~6 h and is the most common false-positive in homemade watchdogs.
+- "no messages today" or "low token count today" without a delivery failure to attribute it to.
+- A single transient probe failure — re-check once (sleep ~10 s, probe again) before declaring degraded.
+
+A reference implementation is shipped at `templates/quick-check.sh`. If you regenerate this script, mirror those signals; if you are tempted to add a "log freshness" check, re-read this section.
+
 ## Auto-repair
 
 If the messaging gateway is inactive, failed, or unreachable, and the gateway is installed as a managed Hermes service:

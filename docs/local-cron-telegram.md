@@ -31,6 +31,21 @@ Example paths:
 
 Use whichever directory is appropriate for your server, but keep scripts readable and auditable.
 
+A reference `quick-check.sh` implementation ships in this repository at `templates/quick-check.sh`. Copy it to `/opt/hermes-watchdog/quick-check.sh` (or wherever your layout puts it) and override the documented env vars as needed.
+
+## Liveness signals — avoid the "stale log = restart" trap
+
+The single biggest mistake in homemade Hermes watchdogs is treating `agent.log` mtime (or any "log freshness" check) as a liveness signal. It is not. A healthy Hermes that has no chat traffic for a few hours legitimately writes nothing to `agent.log`. A watchdog that restarts on log staleness will kick the gateway every ~6 hours during idle periods — observed live: 135 spurious restarts in one 5-week window, 100% with reason `agent.log not written in over 6h`, zero caused by an actual service failure.
+
+The Python gateway exposes no HTTP port, so an HTTP `/health` check is also not an option. Use activity-INDEPENDENT signals instead:
+
+1. `systemctl is-active <unit>` — must be active.
+2. `hermes gateway status` exit code — only if it is a real probe on the installed Hermes version, not a thin systemd state echo (which would be circular).
+3. PID-bound outbound `:443` check — a healthy gateway in polling mode always holds at least one ESTABLISHED TCP connection to its messaging platform. Resolve the gateway PID, then check `ss -tnp` for `pid=NNN,...:443`. Do NOT hard-code Telegram IP ranges (149.154.x, 91.108.x) — they drift; the `:443` + PID match is the durable signal.
+4. "Connected to Telegram" (or analogous handshake line) present in `agent.log*` with a timestamp at or after the last service `ActiveEnterTimestamp` — surviving from a long-uptime idle gateway often means looking in `agent.log.1` after rotation, not just the live file.
+
+Apply a startup grace period (~120 s) so a mid-reconnect blip during warm-up does not false-alarm, and re-check once (sleep ~10 s, probe again) before declaring degraded. The shipped `templates/quick-check.sh` implements all of this.
+
 ## Environment file
 
 Store notification secrets outside the repository, for example:
