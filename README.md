@@ -135,6 +135,18 @@ For most users, local cron + Telegram is simpler, safer, and more reliable.
 - `templates/claude-settings.autonomous-devops.example.json` — more autonomous template after the operator explicitly approves it.
 - `templates/desktop-scheduled-task-skill.example.md` — optional Claude Code Desktop scheduled task SKILL.md wrapper.
 
+## Support this project
+
+This watchdog is free and MIT licensed, and it stays that way.
+
+If it saved you time and you want to support the work, you can buy me a coffee on Ko-fi.
+
+Supporters also get the Hermes DevOps Kit, my personal, extended version of this watchdog with extra features and a more complete setup:
+
+[Support on Ko-fi and get the Hermes DevOps Kit](https://ko-fi.com/s/29efd32495)
+
+Either way, thanks for using the watchdog.
+
 ## Safety principle
 
 Claude Code may repair Hermes within narrowly scoped boundaries, but it must not silently perform destructive, security-sensitive, or broad system changes. Restarting an installed Hermes gateway service can be safe after evidence and verification. Deleting unknown files, rotating secrets, changing firewall/SSH, changing provider credentials, and major updates are not.
