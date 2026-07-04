@@ -152,8 +152,13 @@ probe_b_connection() {
     pid="$(pgrep -u "$HERMES_USER" -x hermes | head -1)"
   fi
   [ -n "$pid" ] || return 1
-  # `ss -p` includes `pid=NNN,` in the process column when run as root.
-  ss -tnp 2>/dev/null | grep -q "pid=${pid},.*:443"
+  # `ss -p` appends `pid=NNN,` in the process/users column when run as root.
+  # Match order-independently: in standard `ss -tnp` output the peer `:443`
+  # prints in the address column (left) and `pid=NNN,` in the users column
+  # (right), so a single `pid=NNN,.*:443` regex never matches — it falsely
+  # reports a healthy gateway as degraded and restarts it. Filter to
+  # ESTABLISHED sessions, keep the `:443` lines, then match the pid.
+  ss -tnp state established 2>/dev/null | grep ":443" | grep -q "pid=${pid},"
 }
 
 # ------------------------------------------------------------------------------
