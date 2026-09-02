@@ -154,7 +154,15 @@ probe_b_connection() {
   local pid
   # Match the long-form invocation Hermes writes into the unit; fall back to
   # any `hermes` process owned by HERMES_USER if the pattern misses.
-  pid="$(pgrep -u "$HERMES_USER" -f "gateway run" | head -1)"
+  # The unit's own MainPID first. On a host that runs several Hermes gateways as the same
+  # user, pgrep returns whichever gateway comes first in the process table, and a healthy
+  # service is judged by a stranger's sockets: measured 2026-09-02 on a fourteen-gateway
+  # host, where this probe restarted a healthy unit on its first tick. pgrep stays as the
+  # fallback for a unit whose MainPID is not readable.
+  pid="$("${SYSTEMCTL[@]}" show -p MainPID --value "$SERVICE" 2>/dev/null | tr -d '[:space:]')"
+  if [ -z "$pid" ] || [ "$pid" = "0" ]; then
+    pid="$(pgrep -u "$HERMES_USER" -f "gateway run" | head -1)"
+  fi
   if [ -z "$pid" ]; then
     pid="$(pgrep -u "$HERMES_USER" -x hermes | head -1)"
   fi
