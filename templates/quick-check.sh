@@ -188,8 +188,13 @@ probe_c_log() {
 
   # Look in the live log AND the most recent rotation (long-uptime idle
   # gateways legitimately have the handshake line in agent.log.1).
-  local sources=("$AGENT_LOG")
+  # The rotated file first and the current log last, so that `tail -1` below returns the newest
+  # "Connected" line. With the current log first, the last line of the rotated file won: on a host
+  # whose agent.log had rotated, every tick after the first restart compared a week-old connect
+  # against the new start time and restarted a healthy, connected gateway (measured 2026-09-02).
+  local sources=()
   [ -f "${AGENT_LOG}.1" ] && sources+=("${AGENT_LOG}.1")
+  sources+=("$AGENT_LOG")
 
   local last_match
   last_match="$(grep -hF "Connected to Telegram" "${sources[@]}" 2>/dev/null | tail -1)"
