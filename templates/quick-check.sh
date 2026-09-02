@@ -26,6 +26,13 @@
 #   RECHECK_SLEEP   re-check delay after a failed probe (default: 10)
 #   PROBE_TIMEOUT   bound on `hermes gateway status` (default: 15)
 #   LOG_FILE        watchdog log (default: /var/log/hermes-watchdog/quick.log)
+#   PLATFORM_ENV    the Hermes .env that holds messaging tokens
+#                   (default: $HERMES_HOME/.env). Probes B and C assume a
+#                   messaging platform is configured; a gateway with none
+#                   holds no :443 connection and logs no handshake, and would
+#                   be restarted every tick. When no platform token is found
+#                   there, B and C are skipped and the unit state plus probe A
+#                   decide (measured 2026-09-02 on a Telegram-less gateway).
 # ==============================================================================
 
 set -uo pipefail
@@ -190,8 +197,22 @@ probe_c_log() {
   [ "$match_epoch" -ge "$active_epoch" ]
 }
 
+# Is any messaging platform configured? Hermes writes platform tokens into its
+# .env (TELEGRAM_BOT_TOKEN, DISCORD_BOT_TOKEN, ...). With none, the gateway is
+# a clock and an API and legitimately holds no outbound :443 connection.
+PLATFORM_ENV="${PLATFORM_ENV:-${HERMES_HOME}/.env}"
+platform_configured() {
+  [ -r "$PLATFORM_ENV" ] || return 1
+  grep -qE '^(TELEGRAM|DISCORD|SLACK|WHATSAPP|SIGNAL|MATRIX|WEIXIN|WECHAT|FEISHU|MATTERMOST)[A-Z0-9_]*(TOKEN|KEY|SECRET|PHONE|NUMBER|ID)=.+' "$PLATFORM_ENV"
+}
+
 run_independent_probes() {
-  # Both B and C must pass for the independent signal to read healthy.
+  # Both B and C must pass for the independent signal to read healthy. They
+  # only mean something when a platform is configured; otherwise skip them.
+  if ! platform_configured; then
+    log "no messaging platform configured in $PLATFORM_ENV; probes B and C skipped"
+    return 0
+  fi
   probe_b_connection && probe_c_log
 }
 
