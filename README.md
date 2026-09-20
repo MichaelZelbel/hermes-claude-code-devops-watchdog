@@ -4,6 +4,39 @@ This repository contains a Claude Code DevOps workflow for keeping a Hermes Agen
 
 Goal: set up a VPS-local watchdog that checks Hermes Agent, the messaging gateway, scheduled jobs, provider authentication, configured tools, and host health; performs only clearly safe repairs; and escalates risky changes to the operator.
 
+## If you see this
+
+```text
+hermes-gateway.service: State 'stop-sigterm' timed out. Killing.
+hermes-gateway.service: Main process exited, code=killed, status=9/KILL
+```
+
+From `journalctl -u hermes-gateway`. The gateway did not stop within systemd's time limit and was killed. The `TimeoutStopSec` drop-in that gives it more time is in [docs/troubleshooting.md](docs/troubleshooting.md#gateway-restarts-end-in-sigkill-status9kill).
+
+```text
+agent.log not written in over 6h
+```
+
+An old copy of the quick check is restarting a healthy idle gateway. A quiet Hermes writes nothing to `agent.log` for hours. Replace the script with [templates/quick-check.sh](templates/quick-check.sh), which uses signals that do not depend on chat traffic. Details in [docs/troubleshooting.md](docs/troubleshooting.md).
+
+```text
+⚠ A previous `hermes update` pulled new code but did not restart running gateways.
+```
+
+An open upstream problem, [Hermes issue 107402](https://github.com/NousResearch/hermes-agent/issues/107402): the line can stay after the gateways really restarted. Nothing in this repository clears it, and `templates/quick-check.sh` does not read it.
+
+```text
+⚠️ Gateway shutting down
+```
+
+Hermes posts this notice to the bot's home chat when the gateway stops, and another when it is back. A restart made by a watchdog triggers it like any other restart. `gateway_restart_notification: false` for that platform in `config.yaml` turns it off from the next gateway start. See "Restart notifications" in the [Hermes messaging docs](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/).
+
+```text
+OAuth session expired and could not be refreshed
+```
+
+This one is Claude Code, not Hermes: the operator's own sign-in ran out, so the scheduled Claude Code runs cannot start until someone signs in again. Nothing in this repository repairs that. `templates/quick-check.sh` is plain shell and keeps restarting a gateway that is down in the meantime.
+
 ## TL;DR
 
 1. Install Hermes Agent on your VPS.
