@@ -4,6 +4,8 @@ This repository contains a Claude Code DevOps workflow for keeping a Hermes Agen
 
 Goal: set up a VPS-local watchdog that checks Hermes Agent, the messaging gateway, scheduled jobs, provider authentication, configured tools, and host health; performs only clearly safe repairs; and escalates risky changes to the operator.
 
+Made by Michael Zelbel, who also builds [Godspeed Mission Control](https://godspeedmissioncontrol.com), a free personal AI you run yourself.
+
 ## TL;DR
 
 1. Install Hermes Agent on your VPS.
@@ -139,13 +141,17 @@ For most users, local cron + Telegram is simpler, safer, and more reliable.
 
 This watchdog is free and MIT licensed, and it stays that way.
 
-If it saved you time and you want to support the work, you can buy me a coffee on Ko-fi.
+There is also an extended build, the Hermes DevOps Kit, free on Ko-fi. It takes this watchdog and sets up the rest of the server around it. You get an installer, a security baseline, backup and cost checks, safe upgrades, incident playbooks and remote control from your phone. It also sets up the [Chrome Agent Bridge](https://github.com/MichaelZelbel/chrome-agent-bridge), so your agent can use a real, logged-in browser on your own computer.
 
-Supporters also get the Hermes DevOps Kit, my personal, extended version of this watchdog with extra features and a more complete setup:
+[Get the Hermes DevOps Kit free on Ko-fi](https://ko-fi.com/s/29efd32495)
 
-[Support on Ko-fi and get the Hermes DevOps Kit](https://ko-fi.com/s/29efd32495)
+If it saved you time and you want to support the work, you can buy me a coffee there too. Either way, thanks for using the watchdog.
 
-Either way, thanks for using the watchdog.
+## Related projects
+
+- [Hermes Self DevOps Watchdog](https://github.com/MichaelZelbel/hermes-self-devops-watchdog), the sister project: a second Hermes profile holds the pager instead of Claude Code, on the same shell floor. Its kit is the [Hermes Self-Ops Kit](https://ko-fi.com/s/61564ec2b5), also free.
+- The same watchdog for other agent servers: [OpenClaw](https://github.com/MichaelZelbel/openclaw-claude-code-devops-watchdog) and [Paperclip](https://github.com/MichaelZelbel/paperclip-devops-watchdog).
+- [Godspeed Mission Control](https://godspeedmissioncontrol.com): a free personal AI that lives in a folder you own and wakes you only when it matters.
 
 ## Safety principle
 
