@@ -1,0 +1,2 @@
+# The tests and wrappers use "check && ok || bad" on purpose: the two branches are the two outcomes.
+disable=SC2015
