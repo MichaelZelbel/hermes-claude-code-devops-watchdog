@@ -85,6 +85,9 @@ Start conservatively:
 # quick check every 5 minutes
 */5 * * * * /opt/hermes-watchdog/quick-check.sh >> /opt/hermes-watchdog/logs/quick-check.log 2>&1
 
+# stale code: restart a gateway that runs older code or settings than are on disk (templates/stale-check.sh)
+*/5 * * * * UNITS="hermes-gateway.service" /opt/hermes-watchdog/stale-check.sh
+
 # deeper check every 6 hours
 0 */6 * * * /opt/hermes-watchdog/deep-check.sh >> /opt/hermes-watchdog/logs/deep-check.log 2>&1
 ```

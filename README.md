@@ -92,6 +92,24 @@ Expected healthy signs:
 - Disk usage is comfortably below warning levels, ideally below 80%.
 - Memory and load are not under sustained pressure.
 
+## A gateway that is running but answers nothing after an update
+
+The symptom: `systemctl` says the gateway is active and it still holds its connection to Telegram. Yet every message gets an error, or scheduled jobs stop running while `hermes cron status` looks fine. `quick-check.sh` sees nothing wrong, because by every liveness signal the gateway is up.
+
+The cause: the Hermes files on disk changed under a running gateway. Python keeps the code it already loaded and loads the rest fresh from the new files, so old and new code meet. One restart fixes it.
+
+Since Hermes v0.21.4 (21 September 2026), `hermes update` restarts such gateways itself, right at update time. `templates/stale-check.sh` is the net for everything else:
+
+- a `git pull`, a pip or uv install, or a hand edit
+- an update that crashed before its restart step
+- a changed `config.yaml`, which a gateway only reads when it starts
+
+Every five minutes it compares each gateway's start time with the newest code file and with its profile's `config.yaml`. If the gateway is older, it restarts it once, then leaves it alone for an hour. It never restarts on a guess: whatever it cannot measure counts as fine.
+
+It assumes gateways run as systemd units. It finds the code by asking `hermes --version`, so set `HERMES_SRC` if your install keeps it somewhere else. It ignores `.py` files a gateway never imports (`node_modules`, `tests`, virtual environments, caches, docs), because one touched file in `node_modules` once made a whole fleet look stale. Try it with `DRY_RUN=1` first and read `/var/log/hermes-watchdog/stale.log`.
+
+    */5 * * * *  UNITS="hermes-gateway.service" /opt/hermes-watchdog/templates/stale-check.sh
+
 ## Recommended scheduling model
 
 Use local cron or a systemd timer on the VPS as the default watchdog runner.
@@ -136,6 +154,7 @@ For most users, local cron + Telegram is simpler, safer, and more reliable.
 - `templates/claude-settings.conservative.example.json` — stricter permission template.
 - `templates/claude-settings.autonomous-devops.example.json` — more autonomous template after the operator explicitly approves it.
 - `templates/desktop-scheduled-task-skill.example.md` — optional Claude Code Desktop scheduled task SKILL.md wrapper.
+- `templates/stale-check.sh` — restarts a gateway that runs older code or settings than are on disk.
 
 ## Support this project
 
