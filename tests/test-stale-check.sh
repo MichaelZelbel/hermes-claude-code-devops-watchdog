@@ -31,7 +31,8 @@ case "$cmd" in
     else echo 0; fi ;;
   stop)
     echo "stop $unit" >> "$STUB_DIR/calls"
-    if [ -n "${STUB_MARKER:-}" ] && [ -f "$STUB_MARKER" ]; then cp "$STUB_MARKER" "$STUB_DIR/marker-seen"; fi ;;
+    if [ -n "${STUB_MARKER:-}" ] && [ -f "$STUB_MARKER" ]; then cp "$STUB_MARKER" "$STUB_DIR/marker-seen"; fi
+    if [ "${STUB_KILL_ON_STOP:-0}" = 1 ]; then kill -TERM "$PPID"; fi ;;
   start|restart)
     echo "$cmd $unit" >> "$STUB_DIR/calls"
     if [ "${STUB_FIXES:-1}" = 1 ]; then date +%s > "$STUB_DIR/$unit.start"; fi ;;
@@ -43,7 +44,24 @@ EOF
 pid="${!#}"; unit="$(cat "$STUB_DIR/pid-$pid" 2>/dev/null)" || exit 1
 echo $(( $(date +%s) - $(cat "$STUB_DIR/$unit.start") ))
 EOF
-  chmod +x "$W/bin/systemctl" "$W/bin/ps"
+  # runuser records the drop to another user, then runs the command as-is: the
+  # tests run as one user, so what they can check is that the drop was asked for.
+  cat > "$W/bin/runuser" <<'EOF'
+#!/usr/bin/env bash
+echo "runuser $*" >> "$STUB_DIR/runuser"
+[ "${1:-}" = -u ] && shift 2
+[ "${1:-}" = -- ] && shift
+exec "$@"
+EOF
+  cat > "$W/bin/chown" <<'EOF'
+#!/usr/bin/env bash
+echo "chown $*" >> "$STUB_DIR/chown"
+EOF
+  cat > "$W/bin/fakepy" <<'EOF'
+#!/usr/bin/env bash
+echo ran >> "$STUB_DIR/fakepy-ran"
+EOF
+  chmod +x "$W/bin/systemctl" "$W/bin/ps" "$W/bin/runuser" "$W/bin/chown" "$W/bin/fakepy"
 }
 running() { touch "$STUB_DIR/$1.active"; echo $((NOW-$2)) > "$STUB_DIR/$1.start"; }
 run() { # run [VAR=value ...]  prints the exit code
@@ -133,7 +151,7 @@ else
 fi
 
 new_world; running hermes-gateway.service 3600
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2030
 ( PATH="$W/bin:$PATH"; . "$SCRIPT"; declare -F unit_is_stale >/dev/null && declare -F quiet_restart >/dev/null ) \
   && [ -z "$(calls)" ] && ok "17 sourcing the file defines its functions and restarts nothing" || bad "17 sourcing ran a sweep"
 
@@ -144,6 +162,77 @@ printf '#!/bin/sh\necho "Hermes Agent v0.21.5 (2026.9.24)"\necho "Install direct
 chmod +x "$W/bin/hermes"
 rc=$(run HERMES_SRC= HERMES_BIN="$W/bin/hermes")
 [ "$rc" = 10 ] && [ "$(calls)" = "restart hermes-gateway.service" ] && ok "18 with HERMES_SRC unset, the tree named by hermes --version is used" || bad "18 hermes --version not used" "rc=$rc calls=$(calls) log=$(cat "$W/log/stale.log" 2>/dev/null)"
+
+new_world; running hermes-gateway.service 3600
+ln -s "$W/src" "$W/src-link"
+rc=$(run HERMES_SRC="$W/src-link")
+[ "$rc" = 10 ] && ok "19 a HERMES_SRC that is a symlink to the tree is still read" || bad "19 symlinked source unread" "rc=$rc calls=$(calls)"
+
+new_world; running hermes-gateway.service 3600; : > "$W/not-a-dir"
+rc=$(run LOG_FILE="$W/not-a-dir/stale.log")
+[ "$rc" = 10 ] && [ "$(calls)" = "restart hermes-gateway.service" ] && ok "20 a log that cannot be written does not turn the restart into a no-op" || bad "20 unwritable log" "rc=$rc calls=$(calls)"
+
+new_world
+# shellcheck disable=SC1090,SC2317,SC2031
+out="$( set -u; log() { echo caller-log; }; ts() { echo caller-ts; }
+        PATH="$W/bin:$PATH"; . "$SCRIPT"
+        set -o | grep -q 'pipefail.*on' && echo pipefail-on
+        unit_is_stale hermes-gateway.service; echo "one-arg=$?"
+        source_stamp; echo "no-arg=$?"
+        log; ts )"
+[ "$out" = "$(printf 'one-arg=2\nno-arg=1\ncaller-log\ncaller-ts')" ] \
+  && ok "21 sourced into a set -u caller: its log and ts survive, pipefail stays off, a missing argument means cannot tell" || bad "21 sourcing side effects" "$(printf '%s' "$out" | tr '\n' ' ')"
+
+new_world; running hermes-gateway.service 3600; echo $((NOW+2592000)) > "$W/state/hermes-gateway.service.last"
+rc=$(run)
+[ "$rc" = 10 ] && ok "22 a cooldown stamp dated in the future does not block the restart" || bad "22 future cooldown stamp" "rc=$rc calls=$(calls)"
+
+new_world; running hermes-gateway.service 3600; echo $((NOW-60)) > "$W/state/hermes-gateway.service.last"
+rc=$(run STALE_COOLDOWN=1h)
+[ "$rc" = 0 ] && [ -z "$(calls)" ] && ok "23 a malformed STALE_COOLDOWN falls back to one hour instead of restarting every tick" || bad "23 malformed cooldown" "rc=$rc calls=$(calls)"
+
+new_world; running hermes-gateway-work.service 60; M="$W/home/profiles/work/.drain_request.json"
+printf '{"action": "drain", "principal": "hermes-watchdog-stale-check"}\n' > "$M"
+rc=$(run UNITS=hermes-gateway-work.service)
+[ "$rc" = 0 ] && [ ! -e "$M" ] && ok "27 a drain marker a killed run left behind is removed at the next sweep" || bad "27 leftover marker kept" "rc=$rc"
+new_world; running hermes-gateway-work.service 60; M="$W/home/profiles/work/.drain_request.json"
+printf '{"action": "drain", "principal": "drain-control"}\n' > "$M"
+rc=$(run UNITS=hermes-gateway-work.service)
+[ -e "$M" ] && ok "27b a drain marker someone else wrote is left alone" || bad "27b someone else's marker removed"
+
+new_world; running hermes-gateway-work.service 3600; M="$W/home/profiles/work/.drain_request.json"
+touch -d "@$((NOW-600))" "$W/home/profiles/work/config.yaml"
+rc=$(run UNITS=hermes-gateway-work.service QUIET_RESTART=1 STUB_KILL_ON_STOP=1)
+[ ! -e "$M" ] && ok "29 a run killed during the stop does not leave its drain marker behind" || bad "29 marker left after a kill" "rc=$rc"
+
+if [ "$(id -u)" = 0 ]; then
+  new_world; running hermes-gateway-work.service 3600; M="$W/home/profiles/work/.drain_request.json"
+  touch -d "@$((NOW-600))" "$W/home/profiles/work/config.yaml"
+  rc=$(run UNITS=hermes-gateway-work.service QUIET_RESTART=1 HERMES_USER=svc STUB_MARKER="$M")
+  [ "$rc" = 10 ] && grep -q -- '-u svc --' "$STUB_DIR/runuser" 2>/dev/null && grep -q 'drain_request.json' "$STUB_DIR/runuser" \
+    && [ ! -e "$STUB_DIR/chown" ] && grep -q '"suppress_notification": true' "$STUB_DIR/marker-seen" \
+    && ok "24 as root the drain marker is written as HERMES_USER, never by root, never chowned" || bad "24 marker written by root" "rc=$rc runuser=$(cat "$STUB_DIR/runuser" 2>/dev/null) chown=$(cat "$STUB_DIR/chown" 2>/dev/null)"
+
+  new_world; running hermes-gateway-work.service 3600; M="$W/home/profiles/work/.drain_request.json"
+  touch -d "@$((NOW-600))" "$W/home/profiles/work/config.yaml"
+  rc=$(run UNITS=hermes-gateway-work.service QUIET_RESTART=1 HERMES_USER=svc RUNUSER="$W/nope")
+  [ "$rc" = 10 ] && [ "$(calls)" = "restart hermes-gateway-work.service" ] && [ ! -e "$M" ] \
+    && ok "25 as root with no way to become HERMES_USER: a plain restart and no marker" || bad "25 no runuser" "rc=$rc calls=$(calls)"
+
+  new_world; running hermes-gateway.service 3600
+  printf '#!%s\n' "$W/bin/fakepy" > "$W/bin/hermes"; chmod +x "$W/bin/hermes"
+  rc=$(run HERMES_SRC= HERMES_BIN="$W/bin/hermes" HERMES_USER=svc RUNUSER="$W/nope")
+  [ "$rc" = 0 ] && [ -z "$(calls)" ] && [ ! -e "$STUB_DIR/fakepy-ran" ] && grep -q HERMES_SRC "$W/log/stale.log" \
+    && ok "26 as root with no way to become HERMES_USER, nothing HERMES_USER controls is executed" || bad "26 ran a user program as root" "rc=$rc ran=$(cat "$STUB_DIR/fakepy-ran" 2>/dev/null)"
+
+  new_world; running hermes-gateway.service 3600
+  printf '#!/bin/sh\necho "Install directory: %s"\n' "$W/src" > "$W/bin/hermes"; chmod +x "$W/bin/hermes"
+  rc=$(run HERMES_SRC= HERMES_BIN="$W/bin/hermes" HERMES_USER=svc)
+  [ "$rc" = 10 ] && grep -q -- '--version' "$STUB_DIR/runuser" 2>/dev/null \
+    && ok "28 as root, hermes --version is asked as HERMES_USER" || bad "28 --version not asked as the user" "rc=$rc"
+else
+  printf '  skip 24-26, 28 not root: the drop to HERMES_USER cannot be exercised\n'
+fi
 
 rm -rf "$W"
 printf '\n  %d passed, %d failed\n' "$pass" "$fail"
