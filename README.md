@@ -6,6 +6,8 @@ Goal: set up a VPS-local watchdog that checks Hermes Agent, the messaging gatewa
 
 Made by Michael Zelbel, who also builds [Godspeed Mission Control](https://godspeedmissioncontrol.com), a free personal AI you run yourself.
 
+Want the whole server set up around this watchdog? The [Hermes DevOps Kit](https://ko-fi.com/s/29efd32495) is free on Ko-fi: an installer, a security baseline, backup and cost checks, safe upgrades and alerts on your phone, with this watchdog inside.
+
 ## TL;DR
 
 1. Install Hermes Agent on your VPS.
