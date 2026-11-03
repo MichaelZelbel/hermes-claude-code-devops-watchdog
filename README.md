@@ -8,6 +8,8 @@ Made by Michael Zelbel, who also builds [Godspeed Mission Control](https://godsp
 
 Want the whole server set up around this watchdog? The [Hermes DevOps Kit](https://ko-fi.com/s/29efd32495) is free on Ko-fi: an installer, a security baseline, backup and cost checks, safe upgrades and alerts on your phone, with this watchdog inside.
 
+What does a watchdog like this fix on a real server? [What my watchdog fixed and missed](https://zelbel.com/server-upkeep) shows 60 days of logs from my own Hermes server: more than 15,000 checks, 25 alerts to my chat, and the week it could not fix.
+
 ## TL;DR
 
 1. Install Hermes Agent on your VPS.
